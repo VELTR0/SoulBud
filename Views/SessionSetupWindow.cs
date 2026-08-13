@@ -1,0 +1,336 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Controls.Primitives;
+using Avalonia.Layout;
+using Avalonia.Media;
+using SoulBuddy.Models;
+using SoulBuddy.Services;
+
+namespace SoulBuddy.Views;
+
+public sealed class SessionSetupWindow : Window
+{
+    private readonly SessionStore _sessionStore = new();
+    private readonly TextBox _playerNameBox;
+    private readonly TextBox _soullockeLinkBox;
+    private readonly TextBox _soullockePasswordBox;
+    private readonly CheckBox _showMainWindowCheckBox;
+    private readonly TextBlock _statusText;
+    private readonly Border _activePlayerCard;
+    private readonly TextBlock _activePlayerTitle;
+    private SessionContext? _activeContext;
+
+    public SessionSetupWindow()
+    {
+        Title = "SoulBuddy";
+        Width = 620;
+        Height = 690;
+        MinWidth = 520;
+        MinHeight = 540;
+        Background = Brush("#0B1220");
+
+        _playerNameBox = CreateTextBox("Dein Spielername");
+        _soullockeLinkBox = CreateTextBox("SoulLocke-Link");
+        _soullockePasswordBox = CreateTextBox("SoulLocke-Passwort");
+        _soullockePasswordBox.PasswordChar = '●';
+
+        _showMainWindowCheckBox = new CheckBox
+        {
+            Content = "Hauptfenster anzeigen",
+            IsChecked = true,
+            FontSize = 14,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = Brush("#E2E8F0")
+        };
+
+        _statusText = Text(string.Empty, 13, FontWeight.Medium, "#CBD5E1");
+        _statusText.TextWrapping = TextWrapping.Wrap;
+
+        _activePlayerTitle = Text(string.Empty, 20, FontWeight.Bold, "#F8FAFC");
+        _activePlayerCard = CreateCard(new StackPanel
+        {
+            Spacing = 10,
+            Children =
+            {
+                Text("Zuletzt verwendet", 12, FontWeight.Bold, "#93C5FD"),
+                _activePlayerTitle,
+                CreateButton("Mit diesem Profil starten", ContinueAsync, true)
+            }
+        });
+        _activePlayerCard.IsVisible = false;
+
+        Content = BuildLayout();
+        Opened += OnOpened;
+    }
+
+    private Control BuildLayout()
+    {
+        var content = new StackPanel
+        {
+            Spacing = 18,
+            Margin = new Thickness(34)
+        };
+
+        var header = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+            ColumnSpacing = 12
+        };
+        var title = Text("SoulBuddy", 36, FontWeight.Bold, "#F8FAFC");
+        title.VerticalAlignment = VerticalAlignment.Center;
+        header.Children.Add(title);
+
+        var languageButton = BuildLanguageButton();
+        languageButton.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(languageButton, 1);
+        header.Children.Add(languageButton);
+        content.Children.Add(header);
+
+        content.Children.Add(Text(
+            "Wähle bei jedem Start den gewünschten SoulLocke-Run oder gib eine neue SoulLocke-Session ein.",
+            15,
+            FontWeight.Normal,
+            "#94A3B8"));
+        content.Children.Add(_activePlayerCard);
+
+        var form = new StackPanel { Spacing = 12 };
+        form.Children.Add(CreateLabel("Spielername"));
+        form.Children.Add(_playerNameBox);
+        form.Children.Add(CreateLabel("SoulLocke-Link"));
+        form.Children.Add(_soullockeLinkBox);
+        form.Children.Add(CreateLabel("SoulLocke-Passwort"));
+        form.Children.Add(_soullockePasswordBox);
+        form.Children.Add(Text(
+            "SoulBuddy liest Partnerdaten ausschließlich aus SoulLocke und schreibt ausschließlich deinen eigenen Run zurück.",
+            11,
+            FontWeight.Normal,
+            "#7C8BA1"));
+        form.Children.Add(_showMainWindowCheckBox);
+        form.Children.Add(Text(
+            "Ausgeschaltet läuft SoulBuddy nach deiner Auswahl nur im Hintergrund. Sync, Collector und Overlay bleiben aktiv.",
+            11,
+            FontWeight.Normal,
+            "#7C8BA1"));
+        form.Children.Add(CreateButton("Starten", StartAsync, true));
+        form.Children.Add(_statusText);
+        content.Children.Add(CreateCard(form));
+
+        return new ScrollViewer
+        {
+            Content = content,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+    }
+
+    private async void OnOpened(object? sender, EventArgs eventArgs)
+    {
+        await LoadActivePlayerAsync();
+        Activate();
+    }
+
+    private async Task LoadActivePlayerAsync()
+    {
+        try
+        {
+            _activeContext = await _sessionStore.LoadActiveAsync();
+            if (_activeContext is null)
+            {
+                _activePlayerCard.IsVisible = false;
+                return;
+            }
+
+            _activePlayerTitle.Text = _activeContext.LocalPlayer.DisplayName;
+            _playerNameBox.Text = _activeContext.LocalPlayer.DisplayName;
+            _soullockeLinkBox.Text = _activeContext.SoullockeLink;
+            _soullockePasswordBox.Text = _activeContext.SoullockePassword;
+            _showMainWindowCheckBox.IsChecked = _activeContext.ShowMainWindow;
+            _activePlayerCard.IsVisible = true;
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Das lokale Spielerprofil konnte nicht geladen werden: {ex.Message}", true);
+        }
+    }
+
+    private async Task StartAsync()
+    {
+        await ExecuteAsync(async () =>
+        {
+            var playerName = _playerNameBox.Text ?? string.Empty;
+            var link = _soullockeLinkBox.Text ?? string.Empty;
+            var password = _soullockePasswordBox.Text ?? string.Empty;
+            var showMainWindow = _showMainWindowCheckBox.IsChecked != false;
+
+            ValidateSoullockeInput(link, password);
+            SoullockeLaunchSettings.Configure(link, password, playerName);
+
+            var context = await _sessionStore.StartAsync(
+                playerName,
+                link,
+                password,
+                showMainWindow);
+            _activeContext = context;
+            await LaunchAsync(context);
+        });
+    }
+
+    private async Task ContinueAsync()
+    {
+        if (_activeContext is null)
+            return;
+
+        await ExecuteAsync(async () =>
+        {
+            ValidateSoullockeInput(
+                _activeContext.SoullockeLink,
+                _activeContext.SoullockePassword);
+
+            var context = await _sessionStore.StartAsync(
+                _activeContext.LocalPlayer.DisplayName,
+                _activeContext.SoullockeLink,
+                _activeContext.SoullockePassword,
+                _showMainWindowCheckBox.IsChecked != false);
+            _activeContext = context;
+
+            SoullockeLaunchSettings.Configure(
+                context.SoullockeLink,
+                context.SoullockePassword,
+                context.LocalPlayer.DisplayName);
+
+            await LaunchAsync(context);
+        });
+    }
+
+    private static void ValidateSoullockeInput(string link, string password)
+    {
+        _ = SoullockeLaunchSettings.ExtractSessionId(link);
+        if (string.IsNullOrWhiteSpace(password))
+            throw new ArgumentException("Bitte gib das SoulLocke-Passwort ein.");
+    }
+
+    private async Task ExecuteAsync(Func<Task> action)
+    {
+        try
+        {
+            SetStatus("SoulBuddy wird gestartet …", false);
+            await action();
+        }
+        catch (Exception ex)
+        {
+            SetStatus(ex.Message, true);
+        }
+    }
+
+    private async Task LaunchAsync(SessionContext context)
+    {
+        if (context.ShowMainWindow)
+        {
+            OpenMainWindow(context);
+            return;
+        }
+
+        if (Application.Current is not App app)
+            throw new InvalidOperationException("Der SoulBuddy-Hintergrundmodus konnte nicht gestartet werden.");
+
+        await app.StartHeadlessAsync(context);
+        Close();
+    }
+
+    private void OpenMainWindow(SessionContext context)
+    {
+        var mainWindow = new MainWindow(context);
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            desktop.MainWindow = mainWindow;
+        mainWindow.Show();
+        Close();
+    }
+
+    private void SetStatus(string message, bool isError)
+    {
+        _statusText.Text = message;
+        _statusText.Foreground = Brush(isError ? "#FCA5A5" : "#A7F3D0");
+    }
+
+    private static Button BuildLanguageButton()
+    {
+        var languageMenu = new MenuFlyout();
+        languageMenu.Items.Add(new MenuItem { Header = "🇬🇧  English" });
+        languageMenu.Items.Add(new MenuItem { Header = "🇩🇪  Deutsch" });
+        languageMenu.Items.Add(new MenuItem { Header = "🇫🇷  Français" });
+        languageMenu.Items.Add(new MenuItem { Header = "🇪🇸  Español" });
+        languageMenu.Items.Add(new MenuItem { Header = "🇮🇹  Italiano" });
+        languageMenu.Items.Add(new MenuItem { Header = "🇯🇵  日本語" });
+
+        return new Button
+        {
+            Content = LocalizationService.CurrentFlag,
+            Flyout = languageMenu,
+            Width = 44,
+            Height = 34,
+            Padding = new Thickness(6, 2),
+            FontSize = 18,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Background = Brush("#17243A"),
+            BorderBrush = Brush("#344763"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(9)
+        };
+    }
+
+    private static TextBox CreateTextBox(string placeholderText) => new()
+    {
+        PlaceholderText = placeholderText,
+        FontSize = 15,
+        Padding = new Thickness(13, 11),
+        Background = Brush("#0F1829"),
+        Foreground = Brush("#F8FAFC"),
+        BorderBrush = Brush("#344763"),
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(9)
+    };
+
+    private static TextBlock CreateLabel(string value) =>
+        Text(value, 14, FontWeight.SemiBold, "#E2E8F0");
+
+    private static Button CreateButton(string text, Func<Task> action, bool primary)
+    {
+        var button = new Button
+        {
+            Content = text,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            Padding = new Thickness(14, 11),
+            FontSize = 14,
+            FontWeight = FontWeight.SemiBold,
+            Background = Brush(primary ? "#2563EB" : "#172554"),
+            Foreground = Brush("#F8FAFC"),
+            BorderBrush = Brush(primary ? "#60A5FA" : "#334E8A"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(9)
+        };
+        button.Click += async (_, _) => await action();
+        return button;
+    }
+
+    private static Border CreateCard(Control child) => new()
+    {
+        Background = Brush("#151F33"),
+        BorderBrush = Brush("#2B3C58"),
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(15),
+        Padding = new Thickness(22),
+        Child = child
+    };
+
+    private static TextBlock Text(string value, double fontSize, FontWeight fontWeight, string color) => new()
+    {
+        Text = value,
+        FontSize = fontSize,
+        FontWeight = fontWeight,
+        Foreground = Brush(color)
+    };
+
+    private static SolidColorBrush Brush(string color) => new(Color.Parse(color));
+}

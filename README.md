@@ -39,3 +39,4 @@ Watch your SoulLink partner's game inside your emulator if you'd like to.
 - Setup the tracker link by visiting the website [Soullocke](https://soullocke.com) and create a run (Only Heartgold & Soulsliver work at the moment).
 - Set the same Username that you use in the tracker (Soullocke), paste the link and also the password
 - Enjoy!
+
