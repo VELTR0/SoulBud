@@ -6,9 +6,12 @@ A Pokémon SoulLink application that automatically tracks gameplay and battles, 
 ## Features
 
 ### Automatic Nuzlocke & SoulLink Tracking
-<img src="assets/tracking.png" alt="Pokemon Tracking" width="20%">
+<img src="assets/tracking.png" alt="Pokemon Tracking" width="20%"> 
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="assets/soulbuddy.png" alt="Soulbuddy" width="42%">
 
 No need to manually edit a Nuzlocke or SoulLink tracker: Automatically reads data directly from the game and writes them into the online tracker (https://soullocke.com - I am not affiliated with their website in any way).
+Additionally there is an optional GUI if you like to see everything on you machine as well.
 
 ### In-Game Event Messages
 
