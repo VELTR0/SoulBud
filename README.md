@@ -10,7 +10,7 @@ A Pokémon SoulLink application that automatically tracks gameplay and battles, 
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <img src="assets/soulbuddy.png" alt="Soulbuddy" width="42%">
 
-No need to manually edit a Nuzlocke or SoulLink tracker: Automatically reads data directly from the game and writes them into the online tracker (https://soullocke.com - I am not affiliated with their website in any way).
+No need to manually edit a Nuzlocke or SoulLink tracker: Automatically reads data directly from the game and writes them into an online tracker (https://soullocke.com or https://soullocke.vercel.app - I am not affiliated with their websites in any way).
 Additionally there is an optional GUI if you like to see everything on you machine as well.
 
 ### In-Game Event Messages
@@ -39,7 +39,7 @@ Watch your SoulLink partner's game inside your emulator if you'd like to.
 - Click on "Browse" and go to the folder you just unpacked.
 - Select the file "soulbuddy_all.lua" in: collectors -> desmume-gen4 -> soulbuddy_all.lua
 - Wait for Soulbuddy to start
-- Setup the tracker link by visiting the website [Soullocke](https://soullocke.com) and create a run (Only Heartgold & Soulsliver work at the moment).
-- Set the same Username that you use in the tracker (Soullocke), paste the link and also the password
+- Setup the tracker link by visiting one of the websites [Soullocke](https://soullocke.com) or [SoullockeVercel](https://soullocke.vercel.app) and create a run (Only Heartgold & Soulsliver work at the moment).
+- Set the same Username that you use in the website, paste the link (and if needed the password)
 - Enjoy!
 
